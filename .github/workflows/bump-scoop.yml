@@ -63,11 +63,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p artifacts && cd artifacts
-          ZIP="unreadable-${VERSION}-windows-amd64.zip"
-          gh release download "$TAG" --repo "${GITHUB_REPOSITORY}" --pattern "$ZIP"
-          ZIP_SHA=$(sha256sum "$ZIP" | awk '{print $1}')
-          echo "zip_sha256=$ZIP_SHA" >> "$GITHUB_OUTPUT"
-          echo "zip sha256: $ZIP_SHA"
+          for arch in amd64 386; do
+            ZIP="unreadable-${VERSION}-windows-${arch}.zip"
+            gh release download "$TAG" --repo "${GITHUB_REPOSITORY}" --pattern "$ZIP"
+            SHA=$(sha256sum "$ZIP" | awk '{print $1}')
+            echo "zip_sha256_${arch}=$SHA" >> "$GITHUB_OUTPUT"
+            echo "${arch} sha256: $SHA"
+          done
 
       - name: Validate bump token
         env:
@@ -89,30 +91,30 @@ jobs:
       - name: Update and push Scoop manifest
         env:
           VERSION: ${{ steps.meta.outputs.version }}
-          ZIP_SHA: ${{ steps.sha.outputs.zip_sha256 }}
+          SHA_AMD64: ${{ steps.sha.outputs.zip_sha256_amd64 }}
+          SHA_386: ${{ steps.sha.outputs.zip_sha256_386 }}
         run: |
           set -euo pipefail
           cd bucket
           python3 <<'PY'
           import json, os, pathlib
-          v   = os.environ["VERSION"]
-          sha = os.environ["ZIP_SHA"]
-          url = f"https://github.com/leaker/unreadable/releases/download/v{v}/unreadable-{v}-windows-amd64.zip"
+          v    = os.environ["VERSION"]
+          base = f"https://github.com/leaker/unreadable/releases/download/v{v}"
           manifest = {
               "version": v,
               "description": "Scan a directory for unreadable files: locked, no-permission, path-too-long or I/O errors",
               "homepage": "https://github.com/leaker/unreadable",
               "license": "MIT",
               "architecture": {
-                  "64bit": {"url": url, "hash": sha},
+                  "64bit": {"url": f"{base}/unreadable-{v}-windows-amd64.zip", "hash": os.environ["SHA_AMD64"]},
+                  "32bit": {"url": f"{base}/unreadable-{v}-windows-386.zip", "hash": os.environ["SHA_386"]},
               },
               "bin": "unreadable.exe",
               "checkver": {"github": "https://github.com/leaker/unreadable"},
               "autoupdate": {
                   "architecture": {
-                      "64bit": {
-                          "url": "https://github.com/leaker/unreadable/releases/download/v$version/unreadable-$version-windows-amd64.zip",
-                      },
+                      "64bit": {"url": "https://github.com/leaker/unreadable/releases/download/v$version/unreadable-$version-windows-amd64.zip"},
+                      "32bit": {"url": "https://github.com/leaker/unreadable/releases/download/v$version/unreadable-$version-windows-386.zip"},
                   },
               },
           }

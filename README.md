@@ -29,9 +29,9 @@ Then `scoop update unreadable` upgrades it.
 
 ### Direct download
 
-Grab `unreadable-*-windows-amd64.zip` from the
-[Releases](https://github.com/leaker/unreadable/releases) page and extract
-`unreadable.exe`.
+From the [Releases](https://github.com/leaker/unreadable/releases) page grab
+`unreadable-*-windows-amd64.zip` (64-bit) or `unreadable-*-windows-386.zip`
+(32-bit) and extract `unreadable.exe`. (Scoop picks the right one for you.)
 
 ## Usage
 

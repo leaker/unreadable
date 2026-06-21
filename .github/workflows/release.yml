@@ -98,17 +98,21 @@ jobs:
           VERSION: ${{ steps.meta.outputs.version }}
         run: |
           set -euo pipefail
-          mkdir -p build dist
-          GOOS=windows GOARCH=amd64 CGO_ENABLED=0 \
-            go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o build/unreadable.exe .
-          cp README.md LICENSE build/
+          rm -rf dist && mkdir -p dist
+          # One zip per Windows arch so Scoop can pick 64bit / 32bit per system.
+          # GOARCH amd64 -> Scoop "64bit", 386 -> Scoop "32bit".
+          for arch in amd64 386; do
+            rm -rf build && mkdir -p build
+            GOOS=windows GOARCH="$arch" CGO_ENABLED=0 \
+              go build -trimpath -ldflags "-s -w -X main.version=${VERSION}" -o build/unreadable.exe .
+            cp README.md LICENSE build/
+            ZIP="unreadable-${VERSION}-windows-${arch}.zip"
+            ( cd build && zip -9 "../dist/${ZIP}" unreadable.exe README.md LICENSE )
+            SHA=$(sha256sum "dist/${ZIP}" | awk '{print $1}')
+            echo "zip_sha256_${arch}=$SHA" >> "$GITHUB_OUTPUT"
+          done
 
-          ZIP="unreadable-${VERSION}-windows-amd64.zip"
-          ( cd build && zip -9 "../dist/${ZIP}" unreadable.exe README.md LICENSE )
-
-          ( cd dist && sha256sum "${ZIP}" | tee "unreadable-${VERSION}-checksums.txt" )
-          ZIP_SHA=$(sha256sum "dist/${ZIP}" | awk '{print $1}')
-          echo "zip_sha256=$ZIP_SHA" >> "$GITHUB_OUTPUT"
+          ( cd dist && sha256sum "unreadable-${VERSION}-windows-"*.zip | tee "unreadable-${VERSION}-checksums.txt" )
           ls -la dist
 
       # ----------------------------------------------------------------------
@@ -133,11 +137,13 @@ jobs:
             scoop install unreadable
             ```
 
-            Or download `unreadable-*-windows-amd64.zip` below and extract `unreadable.exe`.
+            Or download the `windows-amd64` (64-bit) or `windows-386` (32-bit) zip
+            below and extract `unreadable.exe`.
 
             See the [README](https://github.com/leaker/unreadable#readme) for usage.
           files: |
             dist/unreadable-*-windows-amd64.zip
+            dist/unreadable-*-windows-386.zip
             dist/unreadable-*-checksums.txt
 
       # ----------------------------------------------------------------------
@@ -172,30 +178,30 @@ jobs:
         if: ${{ steps.meta.outputs.stable == 'true' }}
         env:
           VERSION: ${{ steps.meta.outputs.version }}
-          ZIP_SHA: ${{ steps.pkg.outputs.zip_sha256 }}
+          SHA_AMD64: ${{ steps.pkg.outputs.zip_sha256_amd64 }}
+          SHA_386: ${{ steps.pkg.outputs.zip_sha256_386 }}
         run: |
           set -euo pipefail
           cd bucket
           python3 <<'PY'
           import json, os, pathlib
-          v   = os.environ["VERSION"]
-          sha = os.environ["ZIP_SHA"]
-          url = f"https://github.com/leaker/unreadable/releases/download/v{v}/unreadable-{v}-windows-amd64.zip"
+          v    = os.environ["VERSION"]
+          base = f"https://github.com/leaker/unreadable/releases/download/v{v}"
           manifest = {
               "version": v,
               "description": "Scan a directory for unreadable files: locked, no-permission, path-too-long or I/O errors",
               "homepage": "https://github.com/leaker/unreadable",
               "license": "MIT",
               "architecture": {
-                  "64bit": {"url": url, "hash": sha},
+                  "64bit": {"url": f"{base}/unreadable-{v}-windows-amd64.zip", "hash": os.environ["SHA_AMD64"]},
+                  "32bit": {"url": f"{base}/unreadable-{v}-windows-386.zip", "hash": os.environ["SHA_386"]},
               },
               "bin": "unreadable.exe",
               "checkver": {"github": "https://github.com/leaker/unreadable"},
               "autoupdate": {
                   "architecture": {
-                      "64bit": {
-                          "url": "https://github.com/leaker/unreadable/releases/download/v$version/unreadable-$version-windows-amd64.zip",
-                      },
+                      "64bit": {"url": "https://github.com/leaker/unreadable/releases/download/v$version/unreadable-$version-windows-amd64.zip"},
+                      "32bit": {"url": "https://github.com/leaker/unreadable/releases/download/v$version/unreadable-$version-windows-386.zip"},
                   },
               },
           }

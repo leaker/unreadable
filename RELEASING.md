@@ -14,13 +14,15 @@ git push origin v0.1.0
 
 From there everything is automated by `.github/workflows/release.yml`:
 
-1. Builds `unreadable.exe` for `windows/amd64` with the version baked in via
-   `-ldflags "-X main.version=0.1.0"`.
-2. Packages `unreadable-0.1.0-windows-amd64.zip` (the exe + README + LICENSE)
-   and a checksums file.
+1. Builds `unreadable.exe` for both `windows/amd64` and `windows/386` with the
+   version baked in via `-ldflags "-X main.version=0.1.0"`.
+2. Packages `unreadable-0.1.0-windows-amd64.zip` and
+   `unreadable-0.1.0-windows-386.zip` (each = exe + README + LICENSE) plus a
+   combined checksums file.
 3. Publishes a GitHub Release with those assets attached.
-4. Regenerates `bucket/unreadable.json` in `leaker/scoop-bucket` (version, url,
-   sha256) and pushes an `unreadable: bump to 0.1.0` commit.
+4. Regenerates `bucket/unreadable.json` in `leaker/scoop-bucket` with both a
+   `64bit` and a `32bit` entry (so Scoop installs the right one per system) and
+   pushes an `unreadable: bump to 0.1.0` commit.
 
 End users running `scoop update unreadable` resolve to the new version within
 seconds. The flow is hands-off after `git push origin v0.1.0`.
@@ -96,7 +98,9 @@ stable version in `scoop update`.
 |--------------------------------|-----------------------------------------------------------------------------|
 | `version`                      | tag without the leading `v`                                                 |
 | `architecture.64bit.url`       | `…/releases/download/vX.Y.Z/unreadable-X.Y.Z-windows-amd64.zip`             |
-| `architecture.64bit.hash`      | sha256 of that zip                                                          |
+| `architecture.64bit.hash`      | sha256 of the amd64 zip                                                     |
+| `architecture.32bit.url`       | `…/releases/download/vX.Y.Z/unreadable-X.Y.Z-windows-386.zip`               |
+| `architecture.32bit.hash`      | sha256 of the 386 zip                                                       |
 | `bin`                          | `unreadable.exe`                                                            |
 | `checkver` / `autoupdate`      | wired to this repo's releases for Scoop's own update tooling                |
 
