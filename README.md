@@ -36,23 +36,26 @@ Grab `unreadable-*-windows-amd64.zip` from the
 ## Usage
 
 ```
-unreadable -path <dir> [-deep] [-csv report.csv] [-workers N] [-progress 500]
+unreadable [options] <dir> [<dir>...]
 ```
 
-| Flag | Description |
+One or more directories to scan are passed as positional arguments. Options
+must come before the directories.
+
+| Option | Description |
 | --- | --- |
-| `-path` | Directory to scan (required) |
 | `-deep` | Deep read: read each file's full contents to catch errors that only surface mid-read, e.g. bad sectors (slower, more disk I/O) |
 | `-csv` | Optional: write the problem list to this CSV (UTF-8 BOM, Excel-friendly) |
 | `-workers` | Concurrency, default = CPU cores. Lower it for a **single HDD** to avoid head thrashing; raise it for **SSD / network shares** |
-| `-progress` | Print progress every N files (to stderr); `0` disables |
+| `-progress` | Live progress counter on stderr that updates in place; on by default, `-progress=false` to disable (auto-off when stderr isn't a terminal, so non-interactive runs print only the final result) |
 | `-version` | Print version and exit |
 
 Examples:
 
 ```powershell
-unreadable.exe -path "D:\MyFolder"
-unreadable.exe -path "D:\MyFolder" -deep -csv "C:\temp\unreadable.csv"
+unreadable.exe "D:\MyFolder"
+unreadable.exe "D:\Photos" "E:\Backup"
+unreadable.exe -deep -csv "C:\temp\unreadable.csv" "D:\MyFolder"
 ```
 
 ## Build
