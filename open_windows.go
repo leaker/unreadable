@@ -3,31 +3,26 @@
 package main
 
 import (
-	"io"
-	"os"
 	"path/filepath"
 	"strings"
 	"syscall"
 )
 
-// FILE_FLAG_SEQUENTIAL_SCAN hints the cache manager and speeds up DeepRead's
-// sequential reads. syscall doesn't export it, so define it here.
-const fileFlagSequentialScan = 0x08000000
-
 // openForCheck opens the file read-only while only allowing others to read it,
 // faithfully reproducing the original PowerShell script's
 // [System.IO.FileShare]::Read semantics:
-//   - exclusively locked by another process -> CreateFile fails with ERROR_SHARING_VIOLATION
-//   - currently being written by another process -> the share mode excludes
-//     Write, so it conflicts too
+//   - exclusively locked / being written by another process -> CreateFile fails
+//     with a sharing violation
 //   - no read permission -> ERROR_ACCESS_DENIED
 //   - path too long -> longPath adds the \\?\ prefix to work around it; if it
 //     still fails the error is reported faithfully
 //
+// We request GENERIC_READ so the check reflects real read access, but never
+// read any bytes — a successful open is enough to call the file readable.
 // Go's standard os.Open uses a more permissive share mode (Write/Delete) on
 // Windows and would miss files that are "being written", so we go straight to
 // syscall.CreateFile.
-func openForCheck(path string, deepRead bool, buf []byte) error {
+func openForCheck(path string) error {
 	p, err := syscall.UTF16PtrFromString(longPath(path))
 	if err != nil {
 		return err
@@ -38,33 +33,13 @@ func openForCheck(path string, deepRead bool, buf []byte) error {
 		syscall.FILE_SHARE_READ,
 		nil,
 		syscall.OPEN_EXISTING,
-		syscall.FILE_ATTRIBUTE_NORMAL|fileFlagSequentialScan,
+		syscall.FILE_ATTRIBUTE_NORMAL,
 		0,
 	)
 	if err != nil {
 		return err
 	}
-	// Hand the handle to os.File; its Close calls CloseHandle, so there's no
-	// separate release to do.
-	f := os.NewFile(uintptr(h), path)
-	defer f.Close()
-
-	if deepRead {
-		// Read it through to catch I/O errors that only surface mid-read, e.g.
-		// bad sectors.
-		for {
-			n, rerr := f.Read(buf)
-			if rerr != nil {
-				if rerr == io.EOF {
-					break
-				}
-				return rerr
-			}
-			if n == 0 {
-				break
-			}
-		}
-	}
+	syscall.CloseHandle(h)
 	return nil
 }
 
